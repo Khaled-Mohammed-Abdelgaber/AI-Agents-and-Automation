@@ -1,0 +1,401 @@
+{
+  "name": "email and calender automation",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "*"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "707e5df9-1142-493d-8057-bf3ddc46a54b",
+      "name": "Telegram Trigger",
+      "webhookId": "12d3b381-64ef-4fd4-99e3-69f2632f01af",
+      "credentials": {
+        "telegramApi": {
+          "id": "OPzp0n6U6VD805Sd",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "sendChatAction",
+        "chatId": "={{ $json.message.chat.id }}"
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        580,
+        0
+      ],
+      "id": "edfaef18-3442-42f8-beb5-56bf7dc57521",
+      "name": "Telegram",
+      "webhookId": "a8c6b14f-b893-4adb-b6e0-d199f3dc09c0",
+      "credentials": {
+        "telegramApi": {
+          "id": "OPzp0n6U6VD805Sd",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=/no_think {{ $json.message.text }}",
+        "options": {
+          "systemMessage": "=You are an AI assistant that helps manage emails and my meetings.\n\nYour tasks:\n1. Read and summarize incoming emails clearly and briefly.\n2. Draft professional replies when asked.\n3. Send emails only when instructed.\n4. Retrieve my meetings\n5. Create new meetings\nKeep summaries concise (2–4 sentences). Use a polite, business-friendly tone. Ask for clarification if content is unclear."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.9,
+      "position": [
+        360,
+        200
+      ],
+      "id": "a51983d9-097c-455a-9f66-88159c14c822",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "={{ $json.output }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        760,
+        200
+      ],
+      "id": "9a5a0bbe-a7ac-4491-9fbd-55818e0c2902",
+      "name": "send reply",
+      "webhookId": "55545364-c5e4-4c24-9015-58f81c657754",
+      "credentials": {
+        "telegramApi": {
+          "id": "OPzp0n6U6VD805Sd",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "=chat_with_{{ $('Telegram Trigger').item.json.message.chat.id }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        340,
+        380
+      ],
+      "id": "09db260a-945d-4e56-9b68-f889fcae912f",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "This node sends an automated email using Gmail.",
+        "sendTo": "={{ $fromAI(\"to\",\"recipient address\") }}",
+        "subject": "={{ $fromAI(\"subject\",\"email subject\") }}",
+        "emailType": "text",
+        "message": "={{ $fromAI(\"body\",\"email body\") }}\n\n\nbest regards",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.gmailTool",
+      "typeVersion": 2.1,
+      "position": [
+        460,
+        400
+      ],
+      "id": "4da9c264-7414-4794-8988-df510daae554",
+      "name": "email sender",
+      "webhookId": "ab726d1a-2d59-4718-8247-91fc1d295407",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "RTDVaNhW5ZcKnNsL",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelName": "models/learnlm-2.0-flash-experimental",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        200,
+        340
+      ],
+      "id": "983d6f50-2809-4adc-9c9e-4ceefe1ac4a5",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "uy931Lp8U0eZyLYK",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "get my contact list to check email address to send them emails or calendar invites",
+        "documentId": {
+          "__rl": true,
+          "value": "1bt6cZAlhfJYNcGwSjwzW2dQZbQpIun3qx7xqdeWa2BM",
+          "mode": "list",
+          "cachedResultName": "contacts list",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1bt6cZAlhfJYNcGwSjwzW2dQZbQpIun3qx7xqdeWa2BM/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1bt6cZAlhfJYNcGwSjwzW2dQZbQpIun3qx7xqdeWa2BM/edit#gid=0"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheetsTool",
+      "typeVersion": 4.5,
+      "position": [
+        600,
+        420
+      ],
+      "id": "602e6434-6128-40b1-a17f-dccaae17b93e",
+      "name": "my contacts getter",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "2movu38HYFV9PcMB",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "This node reads incoming emails from the connected inbox.",
+        "operation": "getAll",
+        "limit": 5,
+        "simple": false,
+        "filters": {},
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmailTool",
+      "typeVersion": 2.1,
+      "position": [
+        720,
+        420
+      ],
+      "id": "70cd53fd-9a76-4a23-8b31-1020494a4c4d",
+      "name": "my emails reader",
+      "webhookId": "c80a46d2-041e-4099-bb12-3ef8a66528fa",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "RTDVaNhW5ZcKnNsL",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Consume Google Calendar API to check my meetings",
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "value": "khaled.edu.engineer@gmail.com",
+          "mode": "list",
+          "cachedResultName": "khaled.edu.engineer@gmail.com"
+        },
+        "limit": 10,
+        "timeMin": "=",
+        "timeMax": "=",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleCalendarTool",
+      "typeVersion": 1.3,
+      "position": [
+        840,
+        420
+      ],
+      "id": "5781574f-5aae-4328-80bf-6e0fe01068a7",
+      "name": "meeting check",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "WaemT1fHtEDuN2yf",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Consume Google Calendar API to schedule meetings",
+        "calendar": {
+          "__rl": true,
+          "value": "khaled.edu.engineer@gmail.com",
+          "mode": "list",
+          "cachedResultName": "khaled.edu.engineer@gmail.com"
+        },
+        "start": "={{ $fromAI(\"start\",\"meeting start time\") }}",
+        "end": "={{ $fromAI(\"end\",\"meeting end time\") }}",
+        "additionalFields": {
+          "attendees": [
+            "={{ $fromAI(\"attendees\",\"meeting attendees email adresses\") }}"
+          ],
+          "conferenceDataUi": {
+            "conferenceDataValues": {
+              "conferenceSolution": "hangoutsMeet"
+            }
+          },
+          "description": "={{ $fromAI(\"Description\",\"meeting Description\") }}"
+        }
+      },
+      "type": "n8n-nodes-base.googleCalendarTool",
+      "typeVersion": 1.3,
+      "position": [
+        940,
+        380
+      ],
+      "id": "3483fd1b-3768-4ee0-9ba3-ba58b9a223bc",
+      "name": "meeting schedular",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "WaemT1fHtEDuN2yf",
+          "name": "Google Calendar account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Telegram",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "send reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "email sender": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "my contacts getter": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "my emails reader": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "meeting check": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "meeting schedular": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "6dad3edf-3ad1-4f91-902f-5cb9e6173530",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "99b07ed2abbcf158b8498ec9a361eb99d17a5f49d2d4772d18873c8e60eb35e4"
+  },
+  "id": "WpwCEcmb3luq4zYi",
+  "tags": []
+}
