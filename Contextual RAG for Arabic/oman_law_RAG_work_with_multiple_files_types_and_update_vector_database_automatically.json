@@ -1,0 +1,1185 @@
+{
+  "name": "oman law RAG work with multiple files types and update vector database automatically",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $('set_file_id').item.json.file_id }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        -580,
+        900
+      ],
+      "id": "de67d7a8-0de9-47c0-9c44-b6dece22563c",
+      "name": "Google Drive",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "WvLpDjk7mbuAn1UT",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {
+          "metadata": {
+            "metadataValues": [
+              {
+                "name": "file_id",
+                "value": "={{ $('set_file_id').item.json.file_id }}"
+              },
+              {
+                "name": "name",
+                "value": "={{ $('set_file_id').item.json.name }}"
+              },
+              {
+                "name": "creation_time",
+                "value": "={{ $('set_file_id').item.json.createdTime }}"
+              }
+            ]
+          }
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1,
+      "position": [
+        1540,
+        1020
+      ],
+      "id": "2a51796c-552f-43c5-82b9-432df96c1e52",
+      "name": "Default Data Loader"
+    },
+    {
+      "parameters": {
+        "content": "## ingestion\n",
+        "height": 540,
+        "width": 3520
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1660,
+        760
+      ],
+      "id": "2ffc8d93-df1a-4c52-84da-05500d76b9ed",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -1060,
+        1400
+      ],
+      "id": "1e43cd8a-cf51-4078-bcf5-6b2a160cd650",
+      "name": "When chat message received",
+      "webhookId": "4698f84e-d9c5-4e95-a2d5-d7d75f98adf6"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.message }}",
+        "options": {
+          "systemMessage": ":أنت مساعد للوثائق. مهمتك هي الإجابة عن الأسئلة باستخدام الملفات الموجودة في قاعدة البيانات. إليك كيفية القيام بذلك:\n\ndocuments تحقق أولاً من قاعدة بيانات المتجهات المسماة\n\n(RAG) ابحث عن مقاطع نصية مشابهة باستخدام تقنية الاسترجاع المعزز بالنموذج \n\nإذا وجدت تطابقات، استخدمها للإجابة على السؤال\n\n\"إذا لم تجد تطابقًا واضحًا، قل: \"لم أتمكن من العثور على هذه المعلومة في الوثائق.\n\nلا تقم أبدًا بالتخمين أو اختلاق الإجابات\n\nاستخدم اللغة العربية فقط في جميع الإجابات\n"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.9,
+      "position": [
+        -340,
+        1360
+      ],
+      "id": "fba4dd9b-dd55-445d-971c-2dbf948af0f0",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $json.message }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        -220,
+        1600
+      ],
+      "id": "7154126d-1c88-49ec-90ea-9869da2adb0b",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={\n  \"data\": {{ JSON.stringify( $json.data )}}\n}\n",
+        "includeOtherFields": true,
+        "include": "selected",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        100,
+        900
+      ],
+      "id": "4e846695-805c-4e8c-bb72-3ba75aba8a69",
+      "name": "Document Data"
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        -240,
+        840
+      ],
+      "id": "517bddd2-1294-4482-b17d-a7ada4b22629",
+      "name": "Extract PDF"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $binary.data.mimeType }}",
+                    "rightValue": "application/pdf",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "dc504455-62dd-4315-a6de-be90c25b8ba0"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "PDF"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "81d79899-f725-4f1a-a4ae-85f015f58c87",
+                    "leftValue": "={{ $binary.data.mimeType }}",
+                    "rightValue": "text/plain",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "TXT"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -440,
+        900
+      ],
+      "id": "b55dbaf1-815d-4275-801d-f03e7de3bb79",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "content": "## Files Download",
+        "height": 400,
+        "width": 440,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1600,
+        840
+      ],
+      "id": "2a80a086-fa9d-4c99-aa7d-bd92472a254f",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "content": "## File Type Switch\n",
+        "height": 460,
+        "width": 1800,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1140,
+        780
+      ],
+      "id": "4fd8ba5d-db04-4493-b014-aed20a143095",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "content": "## Inserting the chunks into vector database",
+        "height": 520,
+        "width": 520,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1300,
+        780
+      ],
+      "id": "f885b2fd-d32f-4624-aefb-3c543b2b6d04",
+      "name": "Sticky Note5"
+    },
+    {
+      "parameters": {
+        "content": "## Retrieval Part",
+        "height": 560,
+        "width": 1460
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1140,
+        1320
+      ],
+      "id": "e5f27644-54e0-4607-9e6d-a19fb66c0f18",
+      "name": "Sticky Note6"
+    },
+    {
+      "parameters": {
+        "operation": "text",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        -200,
+        1080
+      ],
+      "id": "77be9653-0023-4376-8dbc-22d79932d98e",
+      "name": "Extract DOCX"
+    },
+    {
+      "parameters": {
+        "options": {
+          "reset": false
+        }
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -1100,
+        880
+      ],
+      "id": "d4507e02-07c9-4042-a2d1-7bdcad9cd5cb",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "triggerOn": "specificFolder",
+        "folderToWatch": {
+          "__rl": true,
+          "value": "1Wt5Otus3Q_Yvaz2MShpfcJC0Z6EaUZTq",
+          "mode": "list",
+          "cachedResultName": "n8n",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/1Wt5Otus3Q_Yvaz2MShpfcJC0Z6EaUZTq"
+        },
+        "event": "fileCreated",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDriveTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1480,
+        900
+      ],
+      "id": "4c5c3d95-ccd3-49e7-91db-c26bc60888f0",
+      "name": "File Creation Trigger",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "WvLpDjk7mbuAn1UT",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "triggerOn": "specificFolder",
+        "folderToWatch": {
+          "__rl": true,
+          "value": "1Wt5Otus3Q_Yvaz2MShpfcJC0Z6EaUZTq",
+          "mode": "list",
+          "cachedResultName": "n8n",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/1Wt5Otus3Q_Yvaz2MShpfcJC0Z6EaUZTq"
+        },
+        "event": "fileUpdated",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDriveTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1500,
+        1080
+      ],
+      "id": "c5376e65-c485-4540-82de-46dddfec20cc",
+      "name": "File Update Trigger",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "WvLpDjk7mbuAn1UT",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ee28433e-8402-429b-8ddf-7f8c8c5c74f5",
+              "name": "=file_id",
+              "value": "={{ $json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "513f1ab6-d789-48c4-a603-f32b2ce1d0a0",
+              "name": "name",
+              "value": "={{ $json.name }}",
+              "type": "string"
+            },
+            {
+              "id": "b3e1955e-5d7e-4781-83b0-43fe26dad801",
+              "name": "createdTime",
+              "value": "={{ $json.createdTime }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -880,
+        900
+      ],
+      "id": "2b74e480-4bd9-41b0-b066-be142dfd831f",
+      "name": "set_file_id"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d2a4f996-954f-483e-a209-1505ef2b0121",
+              "name": "data",
+              "value": "={{ $json.text }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -60,
+        840
+      ],
+      "id": "7faf51c5-dcc6-482f-9f46-747a7514ce69",
+      "name": "map pdf"
+    },
+    {
+      "parameters": {
+        "updates": [
+          "*"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1060,
+        1600
+      ],
+      "id": "68820a0d-5581-483f-ba99-c425f08cf5bd",
+      "name": "Telegram Trigger",
+      "webhookId": "f6d36ed8-6a15-4c88-8cda-6dc3fbf6f3b5",
+      "credentials": {
+        "telegramApi": {
+          "id": "OPzp0n6U6VD805Sd",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "71ddf07d-feee-41e8-9c9c-7a16ada831b9",
+              "name": "message",
+              "value": "={{ $json.message.text }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -740,
+        1560
+      ],
+      "id": "520b13d3-4e7e-4687-b36f-458409974946",
+      "name": "Edit telegram"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "71ddf07d-feee-41e8-9c9c-7a16ada831b9",
+              "name": "message",
+              "value": "={{ $json.chatInput }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -760,
+        1380
+      ],
+      "id": "95a1b164-6333-4e62-8d85-eb304768fcdf",
+      "name": "Edit chat"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "fieldsToMatchString": "message",
+        "joinMode": "keepNonMatches",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.1,
+      "position": [
+        -560,
+        1460
+      ],
+      "id": "67c73990-e165-4267-bdc8-663f6eb1aac8",
+      "name": "Merge",
+      "alwaysOutputData": false,
+      "executeOnce": false
+    },
+    {
+      "parameters": {
+        "operation": "sendChatAction",
+        "chatId": "={{ $json.message.chat.id }}"
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -760,
+        1760
+      ],
+      "id": "cd9d8ac9-88df-4c94-b4ad-5d47aad01403",
+      "name": "Telegram",
+      "webhookId": "4f75d575-144c-4bd6-9047-6d5d1d4d0e1e",
+      "credentials": {
+        "telegramApi": {
+          "id": "OPzp0n6U6VD805Sd",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const chunkSize = 500;\nconst chunkOverlap = 50;\nconst text = $input.first().json.data.replace(/\\n/, '');\n\nconst chunks = [];\nlet remainingText = text;\n\nwhile (remainingText.length > 0) {\n  let splitPoint;\n\n  // Try splitting at paragraph level first\n  splitPoint = remainingText.lastIndexOf(\"\\n\\n\", chunkSize);\n\n  // If no paragraph split, try splitting at sentence level\n  if (splitPoint === -1)\n    splitPoint = remainingText.lastIndexOf(\". \", chunkSize);\n\n  // If no sentence split, try splitting at word level\n  if (splitPoint === -1)\n    splitPoint = remainingText.lastIndexOf(\" \", chunkSize);\n\n  // If still no split point, force cut at chunkSize\n  if (splitPoint === -1 || splitPoint < chunkSize * 0.5) {\n    splitPoint = chunkSize; // Hard split if no good split point\n  }\n\n  // Extract chunk and adjust remaining text with overlap\n  let chunk = remainingText.substring(0, splitPoint).trim();\n  chunks.push(chunk);\n\n  // Move the pointer forward while keeping the overlap\n  remainingText = remainingText.substring(Math.max(0, splitPoint - chunkOverlap)).trim();\n\n  // Break if remaining text is too small to form another chunk\n  if (remainingText.length < chunkSize * 0.2) {\n    chunks.push(remainingText);\n    break;\n  }\n}\n\nreturn { chunks };\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        900
+      ],
+      "id": "aa51bc99-9e34-4128-8a1c-186eadcc76c7",
+      "name": "recursive splitter",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "chunks",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        440,
+        900
+      ],
+      "id": "c95d213c-fb96-4610-95ca-1cfd62ffb7e0",
+      "name": "Split Out"
+    },
+    {
+      "parameters": {
+        "fieldsToSummarize": {
+          "values": [
+            {
+              "aggregation": "concatenate",
+              "field": "text",
+              "separateBy": "other",
+              "customSeparator": "###SPLIT###"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.summarize",
+      "typeVersion": 1.1,
+      "position": [
+        1160,
+        900
+      ],
+      "id": "b552bba9-0944-4086-bb15-e9ac396f5382",
+      "name": "Summarize"
+    },
+    {
+      "parameters": {
+        "separator": "###SPLIT###",
+        "chunkSize": 500,
+        "chunkOverlap": 50
+      },
+      "type": "@n8n/n8n-nodes-langchain.textSplitterCharacterTextSplitter",
+      "typeVersion": 1,
+      "position": [
+        1660,
+        1180
+      ],
+      "id": "a3b05166-db69-4b1b-961d-255af4909ee8",
+      "name": "Character Text Splitter"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=<document>\n{{ $('Document Data').item.json.data }}\n</document>\n\nإليك المقطع الذي نرغب في تحديد موقعه داخل الوثيقة الكاملة:\n\n<chunk>\n{{ $json.chunks }}\n</chunk>\n\nيرجى ما يلي:\n- تقديم **سياق مختصر ودقيق** لتحديد موقع هذا المقطع داخل الوثيقة لتحسين قابلية البحث.\n- إرجاع **النص الأصلي للمقطع** تمامًا كما هو، إلا إذا كانت هناك حاجة ضرورية للتصحيح.\n- إذا كان المقطع يحتوي على **رقم غير مكتمل، أو نسبة مئوية، أو كيان معرف**، فيجب تصحيحه باستخدام محتوى الوثيقة الكاملة.\n- إذا كان جزء من **الجملة مبتورًا**، يُرجى استكمال الكلمات الناقصة فقط عند الحاجة لتوضيح المعنى.\n- إذا كان المقطع جزءًا من جدول، يجب تضمين **المدخل الكامل للجدول** للحفاظ على سلامة البيانات.\n- لا تضف أي شروحات أو تنسيقات إضافية تتجاوز المطلوب فقط.\n\nاستخدم الصيغة التالية:\n[السياق المختصر] : [النص الأصلي أو المصحح إذا لزم الأمر]\n\nملاحظة:\nيجب أن يحتوي ردك فقط على النص النهائي الذي يستبدل العناصر النائبة، دون تضمين تسميات العناصر نفسها.\n\n"
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.6,
+      "position": [
+        800,
+        900
+      ],
+      "id": "a9ec0c36-aa33-4ab5-adbd-db16641bc1df",
+      "name": "add context"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-1.5-flash-8b-latest",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        840,
+        1100
+      ],
+      "id": "eb1fb49c-6302-4431-9373-203c62eb3bf2",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "uy931Lp8U0eZyLYK",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "tableName": {
+          "__rl": true,
+          "value": "documents",
+          "mode": "list",
+          "cachedResultName": "documents"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreSupabase",
+      "typeVersion": 1.1,
+      "position": [
+        1340,
+        860
+      ],
+      "id": "0bf69d31-24af-4c71-8138-17b68c179ff7",
+      "name": "Supabase Vector Store",
+      "credentials": {
+        "supabaseApi": {
+          "id": "BWzVlB07tcjgXwdK",
+          "name": "n8n project"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "tableId": "documents",
+        "filterType": "string",
+        "filterString": "=metadata ->> file_id=like.*{{ $json.file_id }}*"
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -720,
+        900
+      ],
+      "id": "b36cc25b-4d0f-43e7-b048-904fa15250c4",
+      "name": "Supabase",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "BWzVlB07tcjgXwdK",
+          "name": "n8n project"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "retrieve-as-tool",
+        "toolName": "documents",
+        "toolDescription": "قاعدة بيانات تحتوى على ملقات تخص القانون العماني ",
+        "tableName": {
+          "__rl": true,
+          "value": "documents",
+          "mode": "list",
+          "cachedResultName": "documents"
+        },
+        "topK": 5,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreSupabase",
+      "typeVersion": 1.1,
+      "position": [
+        -120,
+        1540
+      ],
+      "id": "0f04fd25-86a6-49d0-aecd-5033fb7e4a64",
+      "name": "Supabase Retrieval",
+      "credentials": {
+        "supabaseApi": {
+          "id": "BWzVlB07tcjgXwdK",
+          "name": "n8n project"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -340,
+        1600
+      ],
+      "id": "3c8ae4f7-ffa7-4ca7-b483-ce5e6bbf4c8b",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "oePSiO0ujCQELqVg",
+          "name": "OpenAI github"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        1380,
+        1140
+      ],
+      "id": "d64fef45-8bc8-4d58-b23a-c87495e1841f",
+      "name": "Embeddings OpenAI",
+      "credentials": {
+        "openAiApi": {
+          "id": "oePSiO0ujCQELqVg",
+          "name": "OpenAI github"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        80,
+        1720
+      ],
+      "id": "f74b1877-01ff-4bb4-90f2-14540a0b2ca0",
+      "name": "Embeddings OpenAI1",
+      "credentials": {
+        "openAiApi": {
+          "id": "oePSiO0ujCQELqVg",
+          "name": "OpenAI github"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.from.id }}",
+        "text": "={{ $json.output }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        20,
+        1360
+      ],
+      "id": "5b38f1b4-9149-4c9d-8920-81061e51a0ef",
+      "name": "Telegram1",
+      "webhookId": "3f125f73-8e8f-4b60-b591-7f9d0ff67ee0",
+      "credentials": {
+        "telegramApi": {
+          "id": "OPzp0n6U6VD805Sd",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Adding Context and Summarization",
+        "height": 460,
+        "width": 600,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        680,
+        800
+      ],
+      "id": "8e1de6b3-a96b-444b-a1c6-2c20d96a6b7a",
+      "name": "Sticky Note3"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Google Drive": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Default Data Loader": {
+      "ai_document": [
+        [
+          {
+            "node": "Supabase Vector Store",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "Edit chat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Telegram1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Document Data": {
+      "main": [
+        [
+          {
+            "node": "recursive splitter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract PDF": {
+      "main": [
+        [
+          {
+            "node": "map pdf",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Extract PDF",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extract DOCX",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract DOCX": {
+      "main": [
+        [
+          {
+            "node": "Document Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [],
+        [
+          {
+            "node": "set_file_id",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "File Creation Trigger": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "File Update Trigger": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "set_file_id": {
+      "main": [
+        [
+          {
+            "node": "Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "map pdf": {
+      "main": [
+        [
+          {
+            "node": "Document Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Telegram",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Edit telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit telegram": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Edit chat": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram": {
+      "main": [
+        []
+      ]
+    },
+    "recursive splitter": {
+      "main": [
+        [
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "add context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize": {
+      "main": [
+        [
+          {
+            "node": "Supabase Vector Store",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Character Text Splitter": {
+      "ai_textSplitter": [
+        [
+          {
+            "node": "Default Data Loader",
+            "type": "ai_textSplitter",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "add context": {
+      "main": [
+        [
+          {
+            "node": "Summarize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "add context",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase Vector Store": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase": {
+      "main": [
+        [
+          {
+            "node": "Google Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase Retrieval": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings OpenAI": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Supabase Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings OpenAI1": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Supabase Retrieval",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "dedffb5b-be77-4bff-849f-b7d52c2bb4b0",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "99b07ed2abbcf158b8498ec9a361eb99d17a5f49d2d4772d18873c8e60eb35e4"
+  },
+  "id": "oWGq4hbq1R61blzj",
+  "tags": []
+}
