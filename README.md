@@ -77,7 +77,7 @@ python pharma_automation_app.py
 
 The application now provides two separate processes for better control:
 
-#### Step 1: Convert Word to Excel
+#### Option A: Convert Word to Excel (New Content)
 1. Switch to the **Process Articles** tab
 2. Ensure your Word documents are in the specified input folder
 3. Click **Convert Word to Excel**
@@ -85,8 +85,15 @@ The application now provides two separate processes for better control:
 5. Converted Word files will be moved to the "Completed Files" folder
 6. Excel files will be ready for publication
 
-#### Step 2: Publish to WordPress
-1. After successful conversion, the **Publish to WordPress** button will be enabled
+#### Option B: Use Existing Excel Files
+1. If you already have Excel files in the Excel Output Folder, the app will automatically detect them
+2. Click **Scan Excel** to manually search for existing Excel files
+3. Click **Show Details** to view information about detected files
+4. The app automatically skips files that were already processed (found in Done/Failed folders)
+5. No conversion needed - proceed directly to publication
+
+#### Publish to WordPress
+1. After conversion or detection, the **Publish to WordPress** button will be enabled
 2. Ensure all WordPress credentials and API keys are configured
 3. Click **Publish to WordPress**
 4. Monitor the publication progress in the log area
@@ -96,8 +103,13 @@ The application now provides two separate processes for better control:
 #### File Status Monitoring
 - The status area shows real-time counts of Word documents and Excel files ready for publication
 - **Browser Mode** indicator shows whether automation will run in "Headless" or "Visible" mode
-- Click **Refresh** to update file counts manually
+- **Excel File Management Buttons:**
+  - **Refresh**: Update file counts manually
+  - **Scan Excel**: Search for existing Excel files in the output folder
+  - **Clear List**: Clear the current Excel files list
+  - **Show Details**: View detailed information about detected Excel files
 - Button states automatically update based on available files
+- **Automatic Detection**: App scans for existing Excel files on startup
 
 ### 4. Document Format Requirements
 

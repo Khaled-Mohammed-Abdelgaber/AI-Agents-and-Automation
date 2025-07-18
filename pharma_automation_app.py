@@ -469,6 +469,9 @@ class PharmaAutomationApp:
         
         # Show config status in log after UI is ready
         self.root.after(500, lambda: self.log_message(config_status))
+        
+        # Auto-detect Excel files on startup
+        self.root.after(1000, self.auto_detect_excel_on_startup)
 
     def create_widgets(self):
         # Create notebook for tabs
@@ -617,7 +620,14 @@ class PharmaAutomationApp:
         self.browser_mode_var = tk.StringVar(value="Visible")
         ttk.Label(file_status_frame, textvariable=self.browser_mode_var, foreground="purple").pack(side="left", padx=(5, 20))
         
-        ttk.Button(file_status_frame, text="Refresh", command=self.refresh_file_counts).pack(side="right")
+        # Buttons for file management
+        buttons_frame = ttk.Frame(file_status_frame)
+        buttons_frame.pack(side="right")
+        
+        ttk.Button(buttons_frame, text="Show Details", command=self.show_excel_details).pack(side="right", padx=(5,0))
+        ttk.Button(buttons_frame, text="Scan Excel", command=self.scan_excel_files).pack(side="right", padx=(5,0))
+        ttk.Button(buttons_frame, text="Clear List", command=self.clear_excel_files_list).pack(side="right", padx=(5,0))
+        ttk.Button(buttons_frame, text="Refresh", command=self.refresh_file_counts).pack(side="right", padx=(5,0))
         
         # Progress bar
         self.progress_var = tk.StringVar(value="Ready to start processing...")
@@ -845,6 +855,9 @@ class PharmaAutomationApp:
         
         self.word_count_var.set(f"{word_count} files")
         
+        # Detect existing Excel files in the Excel output folder
+        self.detect_existing_excel_files()
+        
         # Count Excel files ready for publication
         excel_count = len(self.excel_files)
         self.excel_count_var.set(f"{excel_count} files")
@@ -858,6 +871,196 @@ class PharmaAutomationApp:
         # Update browser mode indicator
         headless_mode = self.config.get("browser", {}).get("headless", False)
         self.browser_mode_var.set("Headless" if headless_mode else "Visible")
+
+    def detect_existing_excel_files(self):
+        """Detect existing Excel files in the Excel output folder"""
+        try:
+            excel_folder = self.path_vars["excel"].get()
+            if not excel_folder or not os.path.exists(excel_folder):
+                return
+            
+            detected_files = []
+            done_folder = self.path_vars["done"].get()
+            failed_folder = self.path_vars["failed"].get()
+            
+            # Walk through all subdirectories in the Excel folder
+            for root, dirs, files in os.walk(excel_folder):
+                for file in files:
+                    if file.lower().endswith('.xlsx'):
+                        full_path = os.path.join(root, file)
+                        
+                        # Only add if it's not already in our list
+                        if full_path not in self.excel_files:
+                            # Check if this file was already processed (exists in done/failed folders)
+                            is_already_processed = False
+                            
+                            if done_folder and os.path.exists(done_folder):
+                                done_file_path = os.path.join(done_folder, file)
+                                if os.path.exists(done_file_path):
+                                    is_already_processed = True
+                            
+                            if failed_folder and os.path.exists(failed_folder):
+                                failed_file_path = os.path.join(failed_folder, file)
+                                if os.path.exists(failed_file_path):
+                                    is_already_processed = True
+                            
+                            if not is_already_processed:
+                                detected_files.append(full_path)
+                            else:
+                                self.log_message(f"⏩ Skipping already processed file: {file}")
+            
+            # Add detected files to the excel_files list
+            if detected_files:
+                self.excel_files.extend(detected_files)
+                self.log_message(f"🔍 Detected {len(detected_files)} existing Excel files ready for publication")
+                
+                # Log the detected files
+                for file_path in detected_files:
+                    relative_path = os.path.relpath(file_path, excel_folder)
+                    self.log_message(f"  → Found: {relative_path}")
+                    
+        except Exception as e:
+            self.log_message(f"❌ Error detecting Excel files: {str(e)}")
+            print(f"Error detecting Excel files: {e}")
+
+    def scan_excel_files(self):
+        """Manually scan for Excel files and show results"""
+        try:
+            excel_folder = self.path_vars["excel"].get()
+            if not excel_folder:
+                messagebox.showwarning("No Excel Folder", "Please set the Excel Output Folder path first.")
+                return
+            
+            if not os.path.exists(excel_folder):
+                messagebox.showwarning("Folder Not Found", f"Excel folder does not exist:\n{excel_folder}")
+                return
+            
+            # Clear current Excel files list
+            old_count = len(self.excel_files)
+            self.excel_files.clear()
+            
+            # Detect all Excel files
+            self.detect_existing_excel_files()
+            
+            new_count = len(self.excel_files)
+            
+            # Update UI
+            self.refresh_file_counts()
+            
+            # Show results
+            if new_count > 0:
+                messagebox.showinfo("Excel Files Found", 
+                                  f"Found {new_count} Excel files ready for publication!\n\n"
+                                  f"You can now use 'Publish to WordPress' without converting Word documents.")
+                self.log_message(f"✅ Manual scan completed: {new_count} Excel files found")
+            else:
+                messagebox.showinfo("No Excel Files", 
+                                  f"No Excel files found in:\n{excel_folder}\n\n"
+                                  f"Convert Word documents first or check the Excel folder path.")
+                self.log_message("ℹ️ Manual scan completed: No Excel files found")
+                
+        except Exception as e:
+            error_msg = f"Error scanning Excel files: {str(e)}"
+            messagebox.showerror("Scan Error", error_msg)
+            self.log_message(f"❌ {error_msg}")
+
+    def clear_excel_files_list(self):
+        """Clear the current Excel files list"""
+        if self.excel_files:
+            count = len(self.excel_files)
+            self.excel_files.clear()
+            self.refresh_file_counts()
+            self.log_message(f"🗑️ Cleared {count} Excel files from publication list")
+            messagebox.showinfo("List Cleared", f"Cleared {count} Excel files from the publication list.")
+        else:
+            messagebox.showinfo("List Empty", "No Excel files in the publication list to clear.")
+
+    def auto_detect_excel_on_startup(self):
+        """Automatically detect Excel files when the application starts"""
+        try:
+            excel_folder = self.path_vars["excel"].get()
+            if excel_folder and os.path.exists(excel_folder):
+                # Check if there are any Excel files
+                excel_files_exist = False
+                for root, dirs, files in os.walk(excel_folder):
+                    for file in files:
+                        if file.lower().endswith('.xlsx'):
+                            excel_files_exist = True
+                            break
+                    if excel_files_exist:
+                        break
+                
+                if excel_files_exist:
+                    # Clear existing list and detect
+                    self.excel_files.clear()
+                    self.detect_existing_excel_files()
+                    self.refresh_file_counts()
+                    
+                    if self.excel_files:
+                        self.log_message(f"🚀 Startup scan: Found {len(self.excel_files)} Excel files ready for publication")
+                else:
+                    self.log_message("ℹ️ Startup scan: No Excel files found in output folder")
+            else:
+                self.log_message("ℹ️ Excel output folder not configured or doesn't exist")
+        except Exception as e:
+            self.log_message(f"❌ Error in startup Excel scan: {str(e)}")
+
+    def show_excel_details(self):
+        """Show details about detected Excel files"""
+        if not self.excel_files:
+            messagebox.showinfo("No Excel Files", "No Excel files are currently loaded for publication.\n\nUse 'Scan Excel' to detect existing files or 'Convert Word to Excel' to create new ones.")
+            return
+        
+        # Create details window
+        details_window = tk.Toplevel(self.root)
+        details_window.title("Excel Files Details")
+        details_window.geometry("800x500")
+        details_window.transient(self.root)
+        details_window.grab_set()
+        
+        # Create scrolled text widget
+        text_frame = ttk.Frame(details_window)
+        text_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        text_widget = scrolledtext.ScrolledText(text_frame, wrap=tk.WORD, height=20)
+        text_widget.pack(fill="both", expand=True)
+        
+        # Populate with file details
+        excel_folder = self.path_vars["excel"].get()
+        content = f"Excel Files Ready for Publication ({len(self.excel_files)} files):\n"
+        content += "=" * 60 + "\n\n"
+        
+        for i, file_path in enumerate(self.excel_files, 1):
+            try:
+                # Get relative path for display
+                if excel_folder:
+                    relative_path = os.path.relpath(file_path, excel_folder)
+                else:
+                    relative_path = os.path.basename(file_path)
+                
+                # Get file info
+                file_size = os.path.getsize(file_path)
+                file_size_mb = file_size / (1024 * 1024)
+                modified_time = os.path.getmtime(file_path)
+                modified_date = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(modified_time))
+                
+                content += f"{i}. {relative_path}\n"
+                content += f"   Size: {file_size_mb:.2f} MB\n"
+                content += f"   Modified: {modified_date}\n"
+                content += f"   Full Path: {file_path}\n\n"
+                
+            except Exception as e:
+                content += f"{i}. {os.path.basename(file_path)} (Error reading details: {e})\n\n"
+        
+        text_widget.insert(tk.END, content)
+        text_widget.config(state='disabled')
+        
+        # Add close button
+        button_frame = ttk.Frame(details_window)
+        button_frame.pack(fill="x", padx=10, pady=(0, 10))
+        
+        ttk.Button(button_frame, text="Close", command=details_window.destroy).pack(side="right")
+        ttk.Button(button_frame, text="Refresh List", command=lambda: [self.scan_excel_files(), details_window.destroy()]).pack(side="right", padx=(0, 5))
 
     def start_conversion(self):
         # Validate basic configuration for conversion
