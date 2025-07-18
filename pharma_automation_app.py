@@ -61,20 +61,113 @@ class ConfigManager:
         try:
             if os.path.exists(self.config_file):
                 with open(self.config_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
+                    loaded_config = json.load(f)
+                
+                # Validate and merge with default config to ensure all keys exist
+                config = self._merge_with_defaults(loaded_config)
+                return config
+            return self.default_config.copy()
+        except (json.JSONDecodeError, FileNotFoundError, PermissionError) as e:
+            print(f"Error loading config file: {e}")
+            # Try to backup corrupted config
+            self._backup_corrupted_config()
             return self.default_config.copy()
         except Exception as e:
-            print(f"Error loading config: {e}")
+            print(f"Unexpected error loading config: {e}")
             return self.default_config.copy()
+    
+    def _merge_with_defaults(self, loaded_config):
+        """Merge loaded config with defaults to ensure all required keys exist"""
+        config = self.default_config.copy()
+        
+        # Recursively merge configurations
+        def deep_merge(default, loaded):
+            for key, value in loaded.items():
+                if key in default:
+                    if isinstance(default[key], dict) and isinstance(value, dict):
+                        deep_merge(default[key], value)
+                    else:
+                        default[key] = value
+        
+        if isinstance(loaded_config, dict):
+            deep_merge(config, loaded_config)
+        
+        return config
+    
+    def _backup_corrupted_config(self):
+        """Create a backup of corrupted config file"""
+        try:
+            if os.path.exists(self.config_file):
+                import time
+                backup_name = f"{self.config_file}.backup_{int(time.time())}"
+                import shutil
+                shutil.copy2(self.config_file, backup_name)
+                print(f"Corrupted config backed up to: {backup_name}")
+        except Exception as e:
+            print(f"Could not backup corrupted config: {e}")
     
     def save_config(self, config):
         try:
-            with open(self.config_file, 'w', encoding='utf-8') as f:
+            # Validate config structure before saving
+            if not self._validate_config_structure(config):
+                print("Invalid config structure, using defaults")
+                config = self.default_config.copy()
+            
+            # Create backup of existing config before overwriting
+            self._backup_existing_config()
+            
+            # Save with atomic write (write to temp file first, then rename)
+            temp_file = f"{self.config_file}.tmp"
+            with open(temp_file, 'w', encoding='utf-8') as f:
                 json.dump(config, f, indent=4, ensure_ascii=False)
+            
+            # Atomic rename (safer than direct write)
+            import os
+            if os.path.exists(self.config_file):
+                os.remove(self.config_file)
+            os.rename(temp_file, self.config_file)
+            
             return True
+        except (PermissionError, OSError) as e:
+            print(f"File system error saving config: {e}")
+            return False
         except Exception as e:
             print(f"Error saving config: {e}")
+            # Clean up temp file if it exists
+            try:
+                temp_file = f"{self.config_file}.tmp"
+                if os.path.exists(temp_file):
+                    os.remove(temp_file)
+            except:
+                pass
             return False
+    
+    def _validate_config_structure(self, config):
+        """Validate that config has the required structure"""
+        try:
+            required_keys = ["credentials", "paths", "timeouts", "APIs", "browser"]
+            if not isinstance(config, dict):
+                return False
+            
+            for key in required_keys:
+                if key not in config:
+                    return False
+                if not isinstance(config[key], dict):
+                    return False
+            
+            return True
+        except:
+            return False
+    
+    def _backup_existing_config(self):
+        """Create a backup of existing config before overwriting"""
+        try:
+            if os.path.exists(self.config_file):
+                backup_name = f"{self.config_file}.bak"
+                import shutil
+                shutil.copy2(self.config_file, backup_name)
+        except Exception as e:
+            print(f"Could not backup existing config: {e}")
 
 class DocxToExcelConverter:
     def __init__(self):
@@ -345,13 +438,26 @@ class PharmaAutomationApp:
         self.root.title("Pharma Content Automation")
         self.root.geometry("900x700")
         
-        # Initialize configuration manager
-        self.config_manager = ConfigManager()
-        self.config = self.config_manager.load_config()
+        # Initialize configuration manager with error handling
+        try:
+            self.config_manager = ConfigManager()
+            self.config = self.config_manager.load_config()
+            config_status = "Configuration loaded successfully"
+        except Exception as e:
+            print(f"Critical error initializing configuration: {e}")
+            # Fallback to default configuration
+            self.config_manager = ConfigManager()
+            self.config = self.config_manager.default_config.copy()
+            config_status = "Using default configuration due to load error"
         
         # Create UI
-        self.create_widgets()
-        self.load_saved_config()
+        try:
+            self.create_widgets()
+            self.load_saved_config()
+        except Exception as e:
+            print(f"Error creating UI: {e}")
+            messagebox.showerror("UI Error", f"Error creating user interface: {e}")
+            return
         
         # Queue for thread communication
         self.queue = queue.Queue()
@@ -360,6 +466,9 @@ class PharmaAutomationApp:
         # Processing state
         self.excel_files = []
         self.is_processing = False
+        
+        # Show config status in log after UI is ready
+        self.root.after(500, lambda: self.log_message(config_status))
 
     def create_widgets(self):
         # Create notebook for tabs
@@ -481,6 +590,7 @@ class PharmaAutomationApp:
         ttk.Button(button_frame, text="Save Configuration", command=self.save_config).pack(side="left", padx=5)
         ttk.Button(button_frame, text="Load Configuration", command=self.load_config).pack(side="left", padx=5)
         ttk.Button(button_frame, text="Reset to Default", command=self.reset_config).pack(side="left", padx=5)
+        ttk.Button(button_frame, text="Fix Config Issues", command=self.fix_config_issues).pack(side="left", padx=5)
         
         canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
@@ -566,23 +676,44 @@ class PharmaAutomationApp:
         self.browser_mode_var.set("Headless" if self.headless_var.get() else "Visible")
 
     def save_config(self):
-        # Update config with current values
-        self.config["credentials"]["username"] = self.username_var.get()
-        self.config["credentials"]["password"] = self.password_var.get()
-        self.config["credentials"]["url"] = self.url_var.get()
-        
-        for key, var in self.path_vars.items():
-            self.config["paths"][key] = var.get()
-        
-        self.config["APIs"]["gemini"] = self.gemini_api_var.get()
-        self.config["APIs"]["firworks"] = self.firworks_api_var.get()
-        
-        self.config["browser"]["headless"] = self.headless_var.get()
-        
-        if self.config_manager.save_config(self.config):
-            messagebox.showinfo("Success", "Configuration saved successfully!")
-        else:
-            messagebox.showerror("Error", "Failed to save configuration!")
+        try:
+            # Update config with current values
+            # Ensure config structure exists
+            if "credentials" not in self.config:
+                self.config["credentials"] = {}
+            if "paths" not in self.config:
+                self.config["paths"] = {}
+            if "APIs" not in self.config:
+                self.config["APIs"] = {}
+            if "browser" not in self.config:
+                self.config["browser"] = {}
+            
+            # Update values safely
+            self.config["credentials"]["username"] = self.username_var.get()
+            self.config["credentials"]["password"] = self.password_var.get()
+            self.config["credentials"]["url"] = self.url_var.get()
+            
+            for key, var in self.path_vars.items():
+                self.config["paths"][key] = var.get()
+            
+            self.config["APIs"]["gemini"] = self.gemini_api_var.get()
+            self.config["APIs"]["firworks"] = self.firworks_api_var.get()
+            
+            self.config["browser"]["headless"] = self.headless_var.get()
+            
+            # Attempt to save
+            if self.config_manager.save_config(self.config):
+                messagebox.showinfo("Success", "Configuration saved successfully!")
+                self.log_message("Configuration saved successfully")
+            else:
+                messagebox.showerror("Error", "Failed to save configuration! Check file permissions.")
+                self.log_message("❌ Failed to save configuration")
+                
+        except Exception as e:
+            error_msg = f"Error preparing configuration for save: {e}"
+            print(error_msg)
+            messagebox.showerror("Error", f"Failed to save configuration: {str(e)}")
+            self.log_message(f"❌ {error_msg}")
 
     def load_config(self):
         self.config = self.config_manager.load_config()
@@ -590,18 +721,44 @@ class PharmaAutomationApp:
         messagebox.showinfo("Success", "Configuration loaded successfully!")
 
     def load_saved_config(self):
-        # Load values into UI
-        self.username_var.set(self.config["credentials"]["username"])
-        self.password_var.set(self.config["credentials"]["password"])
-        self.url_var.set(self.config["credentials"]["url"])
-        
-        for key, var in self.path_vars.items():
-            var.set(self.config["paths"].get(key, ""))
-        
-        self.gemini_api_var.set(self.config["APIs"]["gemini"])
-        self.firworks_api_var.set(self.config["APIs"]["firworks"])
-        
-        self.headless_var.set(self.config.get("browser", {}).get("headless", False))
+        # Load values into UI with safe fallbacks
+        try:
+            # Load credentials
+            credentials = self.config.get("credentials", {})
+            self.username_var.set(credentials.get("username", ""))
+            self.password_var.set(credentials.get("password", ""))
+            self.url_var.set(credentials.get("url", "https://pharmastan.net/pharma-login"))
+            
+            # Load paths
+            paths = self.config.get("paths", {})
+            for key, var in self.path_vars.items():
+                var.set(paths.get(key, ""))
+            
+            # Load API keys
+            apis = self.config.get("APIs", {})
+            self.gemini_api_var.set(apis.get("gemini", ""))
+            self.firworks_api_var.set(apis.get("firworks", ""))
+            
+            # Load browser settings
+            browser = self.config.get("browser", {})
+            self.headless_var.set(browser.get("headless", False))
+            
+        except Exception as e:
+            print(f"Error loading config values into UI: {e}")
+            # Set all values to defaults if there's an error
+            self.username_var.set("")
+            self.password_var.set("")
+            self.url_var.set("https://pharmastan.net/pharma-login")
+            
+            for key, var in self.path_vars.items():
+                var.set("")
+            
+            self.gemini_api_var.set("")
+            self.firworks_api_var.set("")
+            self.headless_var.set(False)
+            
+            messagebox.showwarning("Configuration Warning", 
+                                 "Error loading some configuration values. Please check and save your settings.")
         
         # Refresh file counts after loading config
         self.root.after(100, self.refresh_file_counts)
@@ -610,6 +767,63 @@ class PharmaAutomationApp:
         if messagebox.askyesno("Confirm Reset", "Are you sure you want to reset to default configuration?"):
             self.config = self.config_manager.default_config.copy()
             self.load_saved_config()
+            self.log_message("Configuration reset to defaults")
+
+    def fix_config_issues(self):
+        """Attempt to fix common configuration issues"""
+        try:
+            # Check if config file exists and is readable
+            config_file = self.config_manager.config_file
+            issues_found = []
+            fixes_applied = []
+            
+            if os.path.exists(config_file):
+                try:
+                    with open(config_file, 'r', encoding='utf-8') as f:
+                        test_config = json.load(f)
+                except json.JSONDecodeError:
+                    issues_found.append("Corrupted JSON in config file")
+                    # Create backup and reset
+                    self.config_manager._backup_corrupted_config()
+                    self.config = self.config_manager.default_config.copy()
+                    fixes_applied.append("Created backup of corrupted config and reset to defaults")
+                except Exception as e:
+                    issues_found.append(f"Cannot read config file: {e}")
+            
+            # Validate current config structure
+            if not self.config_manager._validate_config_structure(self.config):
+                issues_found.append("Invalid configuration structure")
+                self.config = self.config_manager.default_config.copy()
+                fixes_applied.append("Reset configuration structure to defaults")
+            
+            # Check file permissions
+            try:
+                test_file = f"{config_file}.test"
+                with open(test_file, 'w') as f:
+                    f.write("test")
+                os.remove(test_file)
+            except Exception as e:
+                issues_found.append(f"File permission issues: {e}")
+                fixes_applied.append("Please check file permissions manually")
+            
+            # Update UI with current config
+            self.load_saved_config()
+            
+            # Show results
+            if issues_found:
+                message = "Issues found:\n" + "\n".join(f"• {issue}" for issue in issues_found)
+                if fixes_applied:
+                    message += "\n\nFixes applied:\n" + "\n".join(f"• {fix}" for fix in fixes_applied)
+                messagebox.showinfo("Configuration Check", message)
+                self.log_message(f"Fixed {len(fixes_applied)} configuration issues")
+            else:
+                messagebox.showinfo("Configuration Check", "No configuration issues found!")
+                self.log_message("Configuration check passed - no issues found")
+                
+        except Exception as e:
+            error_msg = f"Error checking configuration: {e}"
+            messagebox.showerror("Error", error_msg)
+            self.log_message(f"❌ {error_msg}")
 
     def log_message(self, message):
         self.log_text.config(state='normal')

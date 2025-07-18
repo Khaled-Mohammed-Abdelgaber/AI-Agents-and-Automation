@@ -133,13 +133,27 @@ pharma-automation/
 └── .env                      # API keys (optional)
 ```
 
-## Configuration File
+## Configuration Management
 
-The application automatically saves your configuration in `config.json`. This file includes:
-- Website credentials
-- File paths
-- API keys
-- Timeout settings
+The application automatically saves your configuration in `config.json` with robust error handling:
+
+### Features:
+- **Auto-backup**: Creates backups before saving new configurations
+- **Corruption Recovery**: Automatically handles corrupted config files
+- **Structure Validation**: Ensures all required configuration sections exist
+- **Atomic Writes**: Prevents data loss during save operations
+- **Default Fallbacks**: Uses sensible defaults when configuration is missing
+
+### Configuration Buttons:
+- **Save Configuration**: Save current settings
+- **Load Configuration**: Reload settings from file
+- **Reset to Default**: Reset all settings to defaults
+- **Fix Config Issues**: Automatically detect and fix common configuration problems
+
+### Configuration Files:
+- `config.json`: Main configuration file
+- `config.json.bak`: Automatic backup of previous configuration
+- `config.json.backup_[timestamp]`: Backup of corrupted configurations
 
 ## Category Mapping
 
@@ -156,29 +170,39 @@ id,category_name
 
 ### Common Issues:
 
-1. **Chrome Driver Issues:**
+1. **Configuration Issues:**
+   - Click **Fix Config Issues** button to automatically detect and resolve problems
+   - If config is corrupted, the app will create a backup and use defaults
+   - Delete `config.json` to completely reset to defaults
+
+2. **Chrome Driver Issues:**
    - Ensure Google Chrome is installed
    - The application uses undetected-chromedriver which auto-downloads compatible drivers
 
-2. **API Errors:**
+3. **API Errors:**
    - Verify your API keys are correct
    - Check internet connectivity
    - Ensure you have sufficient API credits
 
-3. **WordPress Login Issues:**
+4. **WordPress Login Issues:**
    - Verify credentials are correct
    - Check if WordPress site is accessible
    - Ensure login URL is correct
 
-4. **File Processing Errors:**
+5. **File Processing Errors:**
    - Check Word document format matches expected structure
    - Verify file permissions
    - Ensure input/output folders exist and are accessible
 
-5. **Browser Automation Issues:**
+6. **Browser Automation Issues:**
    - If headless mode fails, try disabling it to see what's happening
    - Use visible mode for debugging and testing
    - Headless mode may require additional system resources
+
+7. **Application Won't Start:**
+   - Run `python run_app.py` for detailed error messages
+   - Check if all dependencies are installed
+   - Try deleting `config.json` if there are configuration errors
 
 ### Logs and Debugging:
 

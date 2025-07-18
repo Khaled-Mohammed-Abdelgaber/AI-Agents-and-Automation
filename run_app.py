@@ -56,6 +56,7 @@ def main():
     try:
         # Import and run the main application
         from pharma_automation_app import main as app_main
+        print("✅ Starting application...")
         app_main()
     except ImportError as e:
         print(f"❌ Error importing application: {e}")
@@ -64,6 +65,19 @@ def main():
         sys.exit(1)
     except Exception as e:
         print(f"❌ Error starting application: {e}")
+        print(f"📋 Error details: {str(e)}")
+        
+        # Try to provide helpful suggestions
+        if "config" in str(e).lower():
+            print("💡 This might be a configuration issue.")
+            print("   Try deleting config.json to reset to defaults.")
+        elif "permission" in str(e).lower():
+            print("💡 This might be a file permission issue.")
+            print("   Try running as administrator or check file permissions.")
+        elif "tkinter" in str(e).lower():
+            print("💡 This might be a GUI library issue.")
+            print("   Make sure tkinter is properly installed.")
+        
         input("\nPress Enter to exit...")
         sys.exit(1)
 
