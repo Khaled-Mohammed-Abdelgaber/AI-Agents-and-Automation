@@ -70,11 +70,28 @@ python pharma_automation_app.py
 
 ### 3. Processing Articles
 
+The application now provides two separate processes for better control:
+
+#### Step 1: Convert Word to Excel
 1. Switch to the **Process Articles** tab
 2. Ensure your Word documents are in the specified input folder
-3. Click **Start Processing**
-4. Monitor the progress in the log area
-5. Files will be automatically moved to appropriate folders based on processing results
+3. Click **Convert Word to Excel**
+4. Monitor the conversion progress in the log area
+5. Converted Word files will be moved to the "Completed Files" folder
+6. Excel files will be ready for publication
+
+#### Step 2: Publish to WordPress
+1. After successful conversion, the **Publish to WordPress** button will be enabled
+2. Ensure all WordPress credentials and API keys are configured
+3. Click **Publish to WordPress**
+4. Monitor the publication progress in the log area
+5. Successfully published articles will be moved to the "Completed Files" folder
+6. Failed publications will be moved to the "Failed Files" folder
+
+#### File Status Monitoring
+- The status area shows real-time counts of Word documents and Excel files ready for publication
+- Click **Refresh** to update file counts manually
+- Button states automatically update based on available files
 
 ### 4. Document Format Requirements
 

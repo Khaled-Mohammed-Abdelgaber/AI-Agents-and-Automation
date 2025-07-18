@@ -353,6 +353,10 @@ class PharmaAutomationApp:
         # Queue for thread communication
         self.queue = queue.Queue()
         self.root.after(100, self.process_queue)
+        
+        # Processing state
+        self.excel_files = []
+        self.is_processing = False
 
     def create_widgets(self):
         # Create notebook for tabs
@@ -461,6 +465,20 @@ class PharmaAutomationApp:
         status_frame = ttk.LabelFrame(self.process_frame, text="Process Status", padding=10)
         status_frame.pack(fill="x", padx=10, pady=5)
         
+        # File status
+        file_status_frame = ttk.Frame(status_frame)
+        file_status_frame.pack(fill="x", pady=(0, 10))
+        
+        ttk.Label(file_status_frame, text="Word Documents:").pack(side="left")
+        self.word_count_var = tk.StringVar(value="0 files")
+        ttk.Label(file_status_frame, textvariable=self.word_count_var, foreground="blue").pack(side="left", padx=(5, 20))
+        
+        ttk.Label(file_status_frame, text="Excel Files Ready:").pack(side="left")
+        self.excel_count_var = tk.StringVar(value="0 files")
+        ttk.Label(file_status_frame, textvariable=self.excel_count_var, foreground="green").pack(side="left", padx=(5, 20))
+        
+        ttk.Button(file_status_frame, text="Refresh", command=self.refresh_file_counts).pack(side="right")
+        
         # Progress bar
         self.progress_var = tk.StringVar(value="Ready to start processing...")
         ttk.Label(status_frame, textvariable=self.progress_var).pack(anchor="w")
@@ -479,15 +497,27 @@ class PharmaAutomationApp:
         control_frame = ttk.Frame(self.process_frame)
         control_frame.pack(fill="x", padx=10, pady=5)
         
-        self.start_button = ttk.Button(control_frame, text="Start Processing", 
-                                     command=self.start_processing, style="Accent.TButton")
-        self.start_button.pack(side="left", padx=5)
+        # Left side buttons (main actions)
+        left_buttons = ttk.Frame(control_frame)
+        left_buttons.pack(side="left", fill="x", expand=True)
         
-        self.stop_button = ttk.Button(control_frame, text="Stop Processing", 
+        self.convert_button = ttk.Button(left_buttons, text="Convert Word to Excel", 
+                                       command=self.start_conversion, style="Accent.TButton")
+        self.convert_button.pack(side="left", padx=5)
+        
+        self.publish_button = ttk.Button(left_buttons, text="Publish to WordPress", 
+                                       command=self.start_publication, state="disabled")
+        self.publish_button.pack(side="left", padx=5)
+        
+        # Right side buttons (utility)
+        right_buttons = ttk.Frame(control_frame)
+        right_buttons.pack(side="right")
+        
+        self.stop_button = ttk.Button(right_buttons, text="Stop", 
                                     command=self.stop_processing, state="disabled")
-        self.stop_button.pack(side="left", padx=5)
+        self.stop_button.pack(side="right", padx=5)
         
-        ttk.Button(control_frame, text="Clear Log", command=self.clear_log).pack(side="left", padx=5)
+        ttk.Button(right_buttons, text="Clear Log", command=self.clear_log).pack(side="right", padx=5)
 
     def browse_folder(self, key):
         folder = filedialog.askdirectory()
@@ -534,6 +564,9 @@ class PharmaAutomationApp:
         
         self.gemini_api_var.set(self.config["APIs"]["gemini"])
         self.firworks_api_var.set(self.config["APIs"]["firworks"])
+        
+        # Refresh file counts after loading config
+        self.root.after(100, self.refresh_file_counts)
 
     def reset_config(self):
         if messagebox.askyesno("Confirm Reset", "Are you sure you want to reset to default configuration?"):
@@ -551,40 +584,82 @@ class PharmaAutomationApp:
         self.log_text.delete(1.0, tk.END)
         self.log_text.config(state='disabled')
 
-    def start_processing(self):
-        # Validate configuration
-        if not self.validate_config():
+    def refresh_file_counts(self):
+        # Count Word documents
+        word_count = 0
+        if self.path_vars["word"].get() and os.path.exists(self.path_vars["word"].get()):
+            word_files = [f for f in os.listdir(self.path_vars["word"].get()) if f.lower().endswith('.docx')]
+            word_count = len(word_files)
+        
+        self.word_count_var.set(f"{word_count} files")
+        
+        # Count Excel files ready for publication
+        excel_count = len(self.excel_files)
+        self.excel_count_var.set(f"{excel_count} files")
+        
+        # Update button states
+        if excel_count > 0:
+            self.publish_button.config(state="normal" if not self.is_processing else "disabled")
+        else:
+            self.publish_button.config(state="disabled")
+
+    def start_conversion(self):
+        # Validate basic configuration for conversion
+        if not self.validate_conversion_config():
             return
         
-        self.start_button.config(state="disabled")
+        self.convert_button.config(state="disabled")
+        self.publish_button.config(state="disabled")
         self.stop_button.config(state="normal")
         self.progress_bar.start()
-        self.progress_var.set("Starting processing...")
+        self.progress_var.set("Starting Word to Excel conversion...")
+        self.is_processing = True
         
-        # Start processing in separate thread
-        self.processing_thread = threading.Thread(target=self.process_articles)
+        # Start conversion in separate thread
+        self.processing_thread = threading.Thread(target=self.convert_documents)
+        self.processing_thread.daemon = True
+        self.processing_thread.start()
+
+    def start_publication(self):
+        # Validate full configuration for publication
+        if not self.validate_publication_config():
+            return
+        
+        if not self.excel_files:
+            messagebox.showwarning("No Files", "No Excel files available for publication. Please convert Word documents first.")
+            return
+        
+        self.convert_button.config(state="disabled")
+        self.publish_button.config(state="disabled")
+        self.stop_button.config(state="normal")
+        self.progress_bar.start()
+        self.progress_var.set("Starting WordPress publication...")
+        self.is_processing = True
+        
+        # Start publication in separate thread
+        self.processing_thread = threading.Thread(target=self.publish_articles)
         self.processing_thread.daemon = True
         self.processing_thread.start()
 
     def stop_processing(self):
-        self.start_button.config(state="normal")
+        self.convert_button.config(state="normal")
+        if self.excel_files:
+            self.publish_button.config(state="normal")
         self.stop_button.config(state="disabled")
         self.progress_bar.stop()
         self.progress_var.set("Processing stopped by user")
+        self.is_processing = False
 
-    def validate_config(self):
-        # Check required fields
+    def validate_conversion_config(self):
+        # Check required fields for conversion only
         required_fields = [
-            (self.username_var.get(), "Username"),
-            (self.password_var.get(), "Password"),
-            (self.url_var.get(), "Login URL"),
             (self.path_vars["word"].get(), "Word Documents Folder"),
             (self.path_vars["excel"].get(), "Excel Output Folder"),
         ]
         
         for value, name in required_fields:
             if not value.strip():
-                messagebox.showerror("Configuration Error", f"{name} is required!")
+                messagebox.showerror("Configuration Error", f"{name} is required for conversion!")
                 return False
         
         # Check if word folder exists
@@ -594,9 +669,38 @@ class PharmaAutomationApp:
         
         return True
 
-    def process_articles(self):
+    def validate_publication_config(self):
+        # Check required fields for publication
+        required_fields = [
+            (self.username_var.get(), "Username"),
+            (self.password_var.get(), "Password"),
+            (self.url_var.get(), "Login URL"),
+        ]
+        
+        for value, name in required_fields:
+            if not value.strip():
+                messagebox.showerror("Configuration Error", f"{name} is required for publication!")
+                return False
+        
+        # Check API keys
+        if not self.gemini_api_var.get().strip() and not self.firworks_api_var.get().strip():
+            messagebox.showerror("Configuration Error", "At least one API key (Gemini or Fireworks) is required for publication!")
+            return False
+        
+        # Check image paths if they are provided
+        if self.path_vars["logo_image_path"].get() and not os.path.exists(self.path_vars["logo_image_path"].get()):
+            messagebox.showerror("Configuration Error", "Logo image path does not exist!")
+            return False
+        
+        if self.path_vars["original_images_path"].get() and not os.path.exists(self.path_vars["original_images_path"].get()):
+            messagebox.showerror("Configuration Error", "Original images folder does not exist!")
+            return False
+        
+        return True
+
+    def convert_documents(self):
         try:
-            self.queue.put(("log", "Starting article processing..."))
+            self.queue.put(("log", "Starting Word to Excel conversion..."))
             
             # Save current configuration
             self.save_config()
@@ -615,13 +719,46 @@ class PharmaAutomationApp:
                 progress_callback
             )
             
+            # Store the excel files for publication
+            self.excel_files = converter.excel_paths
+            
+            # Move original word files to done folder if conversion is successful
+            if self.config["paths"]["done"]:
+                os.makedirs(self.config["paths"]["done"], exist_ok=True)
+                word_folder = self.config["paths"]["word"]
+                for filename in os.listdir(word_folder):
+                    if filename.lower().endswith('.docx'):
+                        full_path = os.path.join(word_folder, filename)
+                        try:
+                            shutil.move(full_path, self.config["paths"]["done"])
+                            self.queue.put(("log", f"Moved {filename} to done folder"))
+                        except Exception as e:
+                            self.queue.put(("log", f"Failed to move {filename}: {str(e)}"))
+            
+            self.queue.put(("log", f"✅ Successfully converted {len(self.excel_files)} documents to Excel!"))
+            self.queue.put(("conversion_complete", f"Conversion completed - {len(self.excel_files)} files ready"))
+            
+        except Exception as e:
+            self.queue.put(("log", f"❌ Error during conversion: {str(e)}"))
+            self.queue.put(("conversion_complete", "Conversion failed"))
+
+    def publish_articles(self):
+        try:
+            self.queue.put(("log", "Starting WordPress publication..."))
+            
+            # Save current configuration
+            self.save_config()
+            
             # Initialize automation engine
             automation = AutomationEngine(self.config)
             
+            published_count = 0
+            failed_count = 0
+            
             # Process each Excel file
-            for excel_file in converter.excel_paths:
+            for excel_file in self.excel_files:
                 try:
-                    self.queue.put(("log", f"Processing article: {os.path.basename(excel_file)}"))
+                    self.queue.put(("log", f"Publishing article: {os.path.basename(excel_file)}"))
                     
                     def article_progress_callback(message):
                         self.queue.put(("log", f"  → {message}"))
@@ -635,12 +772,17 @@ class PharmaAutomationApp:
                     # Move processed file to done folder
                     if self.config["paths"]["done"]:
                         os.makedirs(self.config["paths"]["done"], exist_ok=True)
-                        shutil.move(excel_file, self.config["paths"]["done"])
+                        try:
+                            shutil.move(excel_file, self.config["paths"]["done"])
+                        except:
+                            pass  # File might already be moved
                     
-                    self.queue.put(("log", f"✅ Successfully processed: {os.path.basename(excel_file)}"))
+                    published_count += 1
+                    self.queue.put(("log", f"✅ Successfully published: {os.path.basename(excel_file)}"))
                     
                 except Exception as e:
-                    self.queue.put(("log", f"❌ Failed to process {os.path.basename(excel_file)}: {str(e)}"))
+                    failed_count += 1
+                    self.queue.put(("log", f"❌ Failed to publish {os.path.basename(excel_file)}: {str(e)}"))
                     
                     # Move failed file to failed folder
                     if self.config["paths"]["failed"]:
@@ -650,12 +792,15 @@ class PharmaAutomationApp:
                         except:
                             pass
             
-            self.queue.put(("log", "✅ All articles processed successfully!"))
-            self.queue.put(("complete", "Processing completed"))
+            # Clear the excel files list after processing
+            self.excel_files = []
+            
+            self.queue.put(("log", f"✅ Publication completed! Published: {published_count}, Failed: {failed_count}"))
+            self.queue.put(("publication_complete", f"Publication completed - {published_count} published, {failed_count} failed"))
             
         except Exception as e:
-            self.queue.put(("log", f"❌ Error during processing: {str(e)}"))
-            self.queue.put(("complete", "Processing failed"))
+            self.queue.put(("log", f"❌ Error during publication: {str(e)}"))
+            self.queue.put(("publication_complete", "Publication failed"))
 
     def process_queue(self):
         try:
@@ -666,11 +811,23 @@ class PharmaAutomationApp:
                     self.log_message(message)
                 elif message_type == "progress":
                     self.progress_var.set(message)
-                elif message_type == "complete":
-                    self.start_button.config(state="normal")
+                elif message_type == "conversion_complete":
+                    self.convert_button.config(state="normal")
+                    if self.excel_files:
+                        self.publish_button.config(state="normal")
                     self.stop_button.config(state="disabled")
                     self.progress_bar.stop()
                     self.progress_var.set(message)
+                    self.is_processing = False
+                    self.refresh_file_counts()
+                elif message_type == "publication_complete":
+                    self.convert_button.config(state="normal")
+                    self.publish_button.config(state="disabled")  # No files left to publish
+                    self.stop_button.config(state="disabled")
+                    self.progress_bar.stop()
+                    self.progress_var.set(message)
+                    self.is_processing = False
+                    self.refresh_file_counts()
                 
         except queue.Empty:
             pass
