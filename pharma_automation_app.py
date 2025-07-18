@@ -51,6 +51,9 @@ class ConfigManager:
             "APIs": {
                 "gemini": "",
                 "firworks": ""
+            },
+            "browser": {
+                "headless": False
             }
         }
     
@@ -449,6 +452,28 @@ class PharmaAutomationApp:
         self.firworks_api_var = tk.StringVar()
         ttk.Entry(api_frame, textvariable=self.firworks_api_var, width=50, show="*").grid(row=1, column=1, padx=5, pady=2)
         
+        # Browser Settings section
+        browser_frame = ttk.LabelFrame(scrollable_frame, text="Browser Settings", padding=10)
+        browser_frame.pack(fill="x", padx=10, pady=5)
+        
+        # Headless mode checkbox
+        self.headless_var = tk.BooleanVar()
+        headless_checkbox = ttk.Checkbutton(
+            browser_frame, 
+            text="Run browser in headless mode (hidden browser window)", 
+            variable=self.headless_var,
+            command=self.on_headless_change
+        )
+        headless_checkbox.pack(anchor="w", padx=5, pady=5)
+        
+        # Info label
+        info_label = ttk.Label(
+            browser_frame, 
+            text="💡 Headless mode hides the browser window during automation.\nDisable for debugging or to watch the process.",
+            foreground="gray"
+        )
+        info_label.pack(anchor="w", padx=5, pady=(0, 5))
+        
         # Buttons
         button_frame = ttk.Frame(scrollable_frame)
         button_frame.pack(fill="x", padx=10, pady=10)
@@ -476,6 +501,11 @@ class PharmaAutomationApp:
         ttk.Label(file_status_frame, text="Excel Files Ready:").pack(side="left")
         self.excel_count_var = tk.StringVar(value="0 files")
         ttk.Label(file_status_frame, textvariable=self.excel_count_var, foreground="green").pack(side="left", padx=(5, 20))
+        
+        # Browser mode indicator
+        ttk.Label(file_status_frame, text="Browser Mode:").pack(side="left")
+        self.browser_mode_var = tk.StringVar(value="Visible")
+        ttk.Label(file_status_frame, textvariable=self.browser_mode_var, foreground="purple").pack(side="left", padx=(5, 20))
         
         ttk.Button(file_status_frame, text="Refresh", command=self.refresh_file_counts).pack(side="right")
         
@@ -531,6 +561,10 @@ class PharmaAutomationApp:
         if file:
             self.path_vars[key].set(file)
 
+    def on_headless_change(self):
+        """Update browser mode indicator when headless checkbox changes"""
+        self.browser_mode_var.set("Headless" if self.headless_var.get() else "Visible")
+
     def save_config(self):
         # Update config with current values
         self.config["credentials"]["username"] = self.username_var.get()
@@ -542,6 +576,8 @@ class PharmaAutomationApp:
         
         self.config["APIs"]["gemini"] = self.gemini_api_var.get()
         self.config["APIs"]["firworks"] = self.firworks_api_var.get()
+        
+        self.config["browser"]["headless"] = self.headless_var.get()
         
         if self.config_manager.save_config(self.config):
             messagebox.showinfo("Success", "Configuration saved successfully!")
@@ -564,6 +600,8 @@ class PharmaAutomationApp:
         
         self.gemini_api_var.set(self.config["APIs"]["gemini"])
         self.firworks_api_var.set(self.config["APIs"]["firworks"])
+        
+        self.headless_var.set(self.config.get("browser", {}).get("headless", False))
         
         # Refresh file counts after loading config
         self.root.after(100, self.refresh_file_counts)
@@ -602,6 +640,10 @@ class PharmaAutomationApp:
             self.publish_button.config(state="normal" if not self.is_processing else "disabled")
         else:
             self.publish_button.config(state="disabled")
+        
+        # Update browser mode indicator
+        headless_mode = self.config.get("browser", {}).get("headless", False)
+        self.browser_mode_var.set("Headless" if headless_mode else "Visible")
 
     def start_conversion(self):
         # Validate basic configuration for conversion

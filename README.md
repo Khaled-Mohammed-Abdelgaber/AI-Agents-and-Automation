@@ -66,6 +66,11 @@ python pharma_automation_app.py
 - Gemini API Key: Your Google Gemini API key
 - Fireworks API Key: Your Fireworks AI API key
 
+**Browser Settings:**
+- Headless Mode: Choose whether to run browser automation in hidden mode
+  - ✅ **Checked (Headless)**: Browser runs in background (faster, no visual distraction)
+  - ❌ **Unchecked (Visible)**: Browser window is visible (useful for debugging)
+
 3. Click **Save Configuration** to store your settings
 
 ### 3. Processing Articles
@@ -90,6 +95,7 @@ The application now provides two separate processes for better control:
 
 #### File Status Monitoring
 - The status area shows real-time counts of Word documents and Excel files ready for publication
+- **Browser Mode** indicator shows whether automation will run in "Headless" or "Visible" mode
 - Click **Refresh** to update file counts manually
 - Button states automatically update based on available files
 
@@ -168,6 +174,11 @@ id,category_name
    - Check Word document format matches expected structure
    - Verify file permissions
    - Ensure input/output folders exist and are accessible
+
+5. **Browser Automation Issues:**
+   - If headless mode fails, try disabling it to see what's happening
+   - Use visible mode for debugging and testing
+   - Headless mode may require additional system resources
 
 ### Logs and Debugging:
 

@@ -16,6 +16,16 @@ def login_to_website(config):
         "profile.password_manager_enabled": False
     }
     options.add_experimental_option("prefs", prefs)
+    
+    # Set headless mode if configured
+    headless_mode = config.get("browser", {}).get("headless", False)
+    if headless_mode:
+        options.add_argument("--headless")
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--disable-gpu")
+        options.add_argument("--window-size=1920,1080")
+    
     # Launch browser
     driver = uc.Chrome(options=options)
     wait = WebDriverWait(driver, 15)  # 15-second timeout
@@ -239,7 +249,9 @@ def article_writer(excel_path, config, automation_engine, progress_callback=None
         num_subsections = article.shape[0]-1
 
         if progress_callback:
-            progress_callback("Logging into website...")
+            headless_mode = config.get("browser", {}).get("headless", False)
+            browser_mode = "headless" if headless_mode else "visible"
+            progress_callback(f"Logging into website ({browser_mode} mode)...")
 
         driver = login_to_website(config)
         driver.get("https://pharmastan.net/wp-admin/post-new.php?post_type=disease")
